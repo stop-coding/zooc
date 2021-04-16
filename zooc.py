@@ -3,7 +3,7 @@
 @File    :   zooc.py
 @Time    :   2021/04/15 15:48:29
 @Author  :   hongchunhua
-@Contact :   hongchunhua@ruijie.com.cn
+@Contact :   hongchunhua@ruijie.com.cn;549599715@qq.com
 @License :   (C)Copyright 2020-2025
 '''
 import re
@@ -305,7 +305,7 @@ class zk_get(cmdFunc):
         self.is_err=False
     def print_body(self):
         self.log.show("usage: get [path]")
-        self.log.show("   path    新建路径")
+        self.log.show("   path    路径")
     def tab(self, t, cmd):
         try:
             cmds = cmd.split(' ')
@@ -623,7 +623,7 @@ class cmdInput(object):
         return key, self.indata
 
 class terminal(object):
-    def __init__(self, name='zookeper', t = 3.0, host = '172.22.1.20:9639'):
+    def __init__(self, name='zooc', t = 15.0, host = '127.0.0.1:2188'):
         self.log = zkLogger()
         self.zk = zkClient(timeout = t, zkhost = host)
         self.keyset = {cmdInput.KEY_TAB:self.do_tab, cmdInput.KEY_ENTER:self.do_enter, cmdInput.KEY_EXIT:self.do_exit, }
@@ -757,7 +757,7 @@ def help(argv, param):
 
 def argv_parse(argv):
     opts, args = getopt.getopt(argv[1:], "h:t:", ["host=",'timeout='])
-    param = {'timeout':3.0, 'host':'127.0.0.1:2188'}
+    param = {'timeout':15.0, 'host':'127.0.0.1:2188'}
     if len(opts) == 0 and len(args):
         help(argv, param)
         return None
