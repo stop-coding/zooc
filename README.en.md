@@ -1,37 +1,21 @@
 # zkterminal
 
-#### Description
-基于kazoo的zookeeper交互工具，仿终端交互模式
-kazoo: https://kazoo.readthedocs.io/en/latest/
+## Description
+ it base on kazoo，kazoo:
 
-#### Software Architecture
-Software architecture description
-
-#### Installation
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### Instructions
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### Contribution
-
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+    https://kazoo.readthedocs.io/en/latest/
 
 
-#### Gitee Feature
+## Installation
+ 
+    pip install kazoo
 
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## Instructions
+    python3 zooc.py
+        or
+    python3 zooc.py -h 127.0.0.1:9639 -t 5000
+
+
+
+
+
