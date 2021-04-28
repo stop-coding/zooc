@@ -397,56 +397,125 @@ class zk_cmd(cmdFunc):
         except Exception as e:
             self.log.error("zk nc: {0}".format(e))
 
+class zk_info(cmdFunc):
+    def __init__(self):
+        self.log = zkLogger()
+        self.cmd='info'
+        self.is_err=False
+        self.message = ('Mode', )
+    def print_body(self):
+        self.log.show("usage: info")
+        self.log.show("      info    查看集群状态状态")
+    def tab(self, t, cmd):
+        try:
+            self.msg()
+        except Exception as e:
+            self.log.error("cmd: {0}".format(e))
+            self.msg()
+        finally:
+            return cmd
+    def parse(self, opt):
+        self.is_err=False
+    def run(self, Kazooc):
+        if self.is_err:
+            self.is_err=False
+            return
+        try:
+            infos = {}
+            for client in Kazooc.servers:
+                infos[client] = Kazooc.servers[client].command('stat'.encode()).split('\n')
+            for client in infos:
+                for stat in infos[client]:
+                    key = stat.split(':')
+                    if key[0] in self.message:
+                         print(client + '-> ' +stat)
+        except Exception as e:
+            self.log.error("zk info: {0}".format(e))
+
 class zkClient(object):
     def __init__(self, timeout=3.0, showTxt = '[]# ', zkhost='127.0.0.1:2188'):
         self.log = zkLogger()
         self.zk_state = ''
-        self.client = ''
+        self.client = None
         self.session_id = ''
         self.timeout = timeout
         self.showtxt = showTxt
         self.host = zkhost
+        self.servers = {}
     def __del__(self):
         self.close()
     
     def listener(self, state):
+        print(state)
         self.zk_state = state
         self.log.info("zks event, zkstate=%s" %(repr(self.zk_state)))
-
-    def connect(self):
+    def get_severs(self, client):
+        servers = []
         try:
-            if self.host is None:
-                self.log.error("self.host is none")
-                return
-            self.log.info('client connect server=%s, timeout=%s' %(str(self.host), str(self.timeout)))
-            self.client = KazooClient(
-                hosts=self.host,
-                timeout=self.timeout
-            )
-            self.client.add_listener(self.listener)
-            self.client.start(1)
-
+            rsp = client.command('conf'.encode())
+            lines = rsp.split('\n')
+            for line in lines:
+                patter = re.match(r"server\.\S", line)
+                if patter == None:
+                    continue
+                (server, client) = line.split(';')
+                patter = re.findall(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", server)
+                if patter == None:
+                    continue
+                for addr in patter:
+                    (host, port) = client.split(':')
+                    host = addr + ':' + port
+                    servers.append(host)
+            print(servers)
         except Exception as e:
+            self.log.error("zk info: {0}".format(e))
+        finally:
+            return servers
+    def connect(self, host, timeout = 0.5):
+        client = None
+        try:
+            #self.log.info('client connect server=%s, timeout=%s' %(str(host), str(self.timeout)))
+            client = KazooClient(
+                hosts=host,
+                timeout=timeout
+            )
+            client.add_listener(self.listener)
+            client.start(1)
+        except Exception as e:
+            self.log.error('client connect server=%s, timeout=%s' %(str(host), str(timeout)))
             self.log.error("Cannot connect to Zookeeper: {0}".format(e))
             self.zk_state = "CLOSED"
-
+            client = None
+        finally:
+            return client
     def close(self):
         try:
-            if self.client != '':
-                self.client.stop()
-                self.client.close()
-                self.client = ''
-
+            for client in self.servers:
+                self.servers[client].stop()
+                self.servers[client].close()
         except Exception as e:
             self.log.error("close: {0}".format(e))
 
     def open(self):
         try:
             self.close()
-            self.connect()
+            hosts = self.host.split(',')
+            for host in hosts:
+                self.client = self.connect(host, self.timeout)
+                if self.client == None:
+                    raise ValueError("client connect fail")
+                self.servers[host] = self.client
+            servers = self.get_severs(self.client)
+            for server in servers:
+                if server in self.servers:
+                    continue
+                client = self.connect(server, 0.5)
+                if client == None:
+                    continue
+                self.servers[server] = client 
         except Exception as e:
             raise e
-        if self.zk_state == "CONNECTED":
+        if self.client != None:
             (self.session_id,pwd) = self.client.client_id
             self.log.info("zk connected success, session id [0x%x]!!" %(self.session_id))
             return True
@@ -628,7 +697,7 @@ class terminal(object):
         self.zk = zkClient(timeout = t, zkhost = host)
         self.keyset = {cmdInput.KEY_TAB:self.do_tab, cmdInput.KEY_ENTER:self.do_enter, cmdInput.KEY_EXIT:self.do_exit, }
         self.funcs = {"addwatch":addwatch(), 'create':zk_create(), 'del':zk_delete(), 
-                     'set':zk_set(), 'get':zk_get(), 'ls':zk_list(), 'nc':zk_cmd()}
+                     'set':zk_set(), 'get':zk_get(), 'ls':zk_list(), 'nc':zk_cmd(), 'info':zk_info()}
         self.name = name
         self.showtxt = "[%s,id=0x]# " %(name)
     
@@ -757,7 +826,7 @@ def help(argv, param):
 
 def argv_parse(argv):
     opts, args = getopt.getopt(argv[1:], "h:t:", ["host=",'timeout='])
-    param = {'timeout':15.0, 'host':'127.0.0.1:2188'}
+    param = {'timeout':15.0}
     if len(opts) == 0 and len(args):
         help(argv, param)
         return None
