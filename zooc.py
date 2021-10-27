@@ -11,6 +11,7 @@ from kazoo.client import KazooClient
 from kazoo.protocol.states import (
     KeeperState,
 )
+from kazoo.exceptions import *
 import time
 import sys, getopt
 import tty
@@ -432,6 +433,69 @@ class zk_info(cmdFunc):
         except Exception as e:
             self.log.error("zk info: {0}".format(e))
 
+class zk_set_participant(cmdFunc):
+    def __init__(self):
+        self.log = zkLogger()
+        self.cmd='par'
+        self.is_err=False
+        self.message = ('Mode', )
+    def print_body(self):
+        self.log.show("usage: par")
+        self.log.show("      par    设置全部为参与者")
+    def tab(self, t, cmd):
+        try:
+            self.msg()
+        except Exception as e:
+            self.log.error("cmd: {0}".format(e))
+            self.msg()
+        finally:
+            return cmd
+    def parse(self, opt):
+        self.is_err=False
+    def run(self, Kazooc):
+        if self.is_err:
+            self.is_err=False
+            return
+        try:
+            rsp = Kazooc.client.command("conf".encode())
+            for cfg in rsp.split():
+                if re.match(r'server\.(.*)=(.*:)?', cfg) is None:
+                    continue
+                if re.match(r'(.*)observer(.*)', cfg) is None:
+                    continue
+                print(cfg)
+                change = cfg.replace("observer", "participant", 1)
+                self.do_reconfig(Kazooc.client, change)
+        except Exception as e:
+            self.log.error("zk info: {0}".format(e))
+    
+    def do_reconfig(self, zk, new=[]):
+        retry = False
+        try:
+            max_wait_time = 10
+            #重试间隔时间，单位秒
+            wait_interval = 0.5
+            while not zk.connected:
+                time.sleep(wait_interval)
+                max_wait_time -= wait_interval
+                if max_wait_time <= 0:
+                    self.log.error(" session can't reconnected.")
+                    raise ZookeeperError
+            zk.reconfig(joining=new, leaving=None, new_members=None)
+        except NewConfigNoQuorumError as e:
+            self.log.error("NewConfigNoQuorumError: {}".format(e))
+        except BadVersionError as e:
+            self.log.error(" bad version: {}".format(e))
+        except BadArgumentsError as e:
+            self.log.error(" bad arguments: {}".format(e))
+        except ZookeeperError as e:
+            retry = True
+        except Exception as e:
+            self.log.error(" unknown error: {}".format(e))
+            raise e
+        finally:
+            return retry
+
 class zkClient(object):
     def __init__(self, timeout=3.0, showTxt = '[]# ', zkhost='127.0.0.1:2188'):
         self.log = zkLogger()
@@ -450,27 +514,8 @@ class zkClient(object):
         self.zk_state = state
         self.log.info("zks event, zkstate=%s" %(repr(self.zk_state)))
     def get_severs(self, client):
-        servers = []
-        try:
-            rsp = client.command('conf'.encode())
-            lines = rsp.split('\n')
-            for line in lines:
-                patter = re.match(r"server\.\S", line)
-                if patter == None:
-                    continue
-                (server, client) = line.split(';')
-                patter = re.findall(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b", server)
-                if patter == None:
-                    continue
-                for addr in patter:
-                    (host, port) = client.split(':')
-                    host = addr + ':' + port
-                    servers.append(host)
-            print(servers)
-        except Exception as e:
-            self.log.error("zk info: {0}".format(e))
-        finally:
-            return servers
+        servers = [client]
+        return servers
     def connect(self, host, timeout = 0.5):
         client = None
         try:
@@ -697,7 +742,7 @@ class terminal(object):
         self.zk = zkClient(timeout = t, zkhost = host)
         self.keyset = {cmdInput.KEY_TAB:self.do_tab, cmdInput.KEY_ENTER:self.do_enter, cmdInput.KEY_EXIT:self.do_exit, }
         self.funcs = {"addwatch":addwatch(), 'create':zk_create(), 'del':zk_delete(), 
-                     'set':zk_set(), 'get':zk_get(), 'ls':zk_list(), 'nc':zk_cmd(), 'info':zk_info()}
+                     'set':zk_set(), 'get':zk_get(), 'ls':zk_list(), 'nc':zk_cmd(), 'info':zk_info(), 'par':zk_set_participant()}
         self.name = name
         self.showtxt = "[%s,id=0x]# " %(name)
     
